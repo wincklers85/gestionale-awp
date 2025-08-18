@@ -1,0 +1,100 @@
+body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#0f1115;color:#e7ecf4}
+header{padding:16px;border-bottom:1px solid #222836;position:sticky;top:0;background:#0f1115cc;backdrop-filter:blur(6px);z-index:10}
+nav a{color:#e7ecf4;text-decoration:none;margin-right:12px;padding:6px 10px;border-radius:10px}
+nav a:hover{background:#1f2433}
+main{padding:16px;display:grid;gap:16px}
+section{background:#171a22;border:1px solid #222836;border-radius:16px;padding:16px}
+input,select,button{padding:10px;border-radius:10px;border:1px solid #222836;background:#0f1115;color:#e7ecf4}
+button{background:#4da3ff;color:#0b1220;border:0;font-weight:600;cursor:pointer}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{border-bottom:1px solid #222836;padding:8px;text-align:left;font-size:13px}
+th{color:#aab3c5;font-weight:600}
+.ok{color:#90ee90}.err{color:#ff7b7b}.warn{color:#ffd166}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#222836;color:#aab3c5;font-size:12px}
+.grid{display:grid;gap:8px}
+.grid.cols-4{grid-template-columns:repeat(4,1fr)}
+.flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+small.muted{color:#aab3c5}
+/* SIDEBAR + TOPBAR */
+.topbar{display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid #222836;background:#0f1115cc;backdrop-filter:blur(6px);position:sticky;top:0;z-index:30}
+.hamb{width:36px;height:36px;border-radius:10px;border:1px solid #222836;background:#171a22;display:grid;place-items:center;cursor:pointer}
+.hamb div{width:18px;height:2px;background:#e7ecf4;position:relative}
+.hamb div::before,.hamb div::after{content:"";position:absolute;width:18px;height:2px;background:#e7ecf4;left:0}
+.hamb div::before{top:-6px}.hamb div::after{top:6px}
+.brand{font-weight:700}
+.search-wrap{flex:1;position:relative}
+.search-wrap input{width:100%;padding:10px 12px;border-radius:12px;border:1px solid #222836;background:#0f1115;color:#e7ecf4}
+.search-results{position:absolute;left:0;right:0;top:100%;background:#171a22;border:1px solid #222836;border-radius:12px;margin-top:6px;max-height:320px;overflow:auto;display:none}
+.search-results a{display:flex;gap:8px;padding:10px 12px;color:#e7ecf4;text-decoration:none;border-bottom:1px solid #222836}
+.search-results a:hover{background:#1f2433}
+.tag{font-size:11px;padding:2px 6px;border-radius:999px;background:#222836;color:#aab3c5}
+#sidebar{position:fixed;inset:0 auto 0 0;width:260px;background:#0f1115;transform:translateX(-100%);transition:transform .2s ease;border-right:1px solid #222836;z-index:40;padding:12px}
+#sidebar.open{transform:translateX(0)}
+#sb-links a{display:block;padding:10px 12px;border-radius:10px;color:#e7ecf4;text-decoration:none}
+#sb-links a:hover{background:#1f2433}
+#overlay{position:fixed;inset:0;background:#0008;opacity:0;pointer-events:none;transition:opacity .2s;z-index:35}
+#overlay.show{opacity:1;pointer-events:auto}
+main{padding:16px}
+/* === FIX SFONDO SIDEBAR === */
+#sidebar{
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 280px;
+  transform: translateX(-100%);
+  transition: transform .25s ease;
+  z-index: 1001;                 /* sopra all’overlay */
+  /* lasciamo trasparente qui e creiamo uno strato sotto con ::before */
+  background: transparent !important;
+}
+#sidebar.open{ transform: translateX(0); }
+
+/* layer di sfondo “vetro scuro” sotto ai link */
+#sidebar::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 20, 27, 0.88);       /* SCURO SEMI-TRASPARENTE */
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  border-right: 1px solid #222836;
+  pointer-events: none;                     /* non intercetta click */
+  z-index: 0;
+}
+
+/* i link devono stare sopra allo sfondo */
+#sb-links{
+  position: relative;
+  z-index: 1;
+}
+#sb-links a{
+  display: block;
+  padding: 12px 14px;
+  color: #e7ecf4;
+  text-decoration: none;
+  border-radius: 10px;
+}
+#sb-links a:hover{
+  background: rgba(255,255,255,0.08);
+}
+
+/* overlay dietro al menu (scurisce e sfoca il contenuto) */
+#overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(15,17,21,0.58);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .22s ease, visibility .22s ease;
+  z-index: 1000;                /* sotto al sidebar (1001) */
+}
+#overlay.show{
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* blocca lo scroll della pagina quando il menu è aperto */
+body.no-scroll{ overflow: hidden; }

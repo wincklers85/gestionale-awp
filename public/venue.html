@@ -1,0 +1,87 @@
+<!doctype html><html lang="it"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Locale</title>
+<link rel="stylesheet" href="app.css">
+</head><body>
+<header></header>
+<main>
+  <p><strong>Codice Sede:</strong> <span id="codiceSede"></span></p>
+  <p><strong>Codice PDV:</strong> <span id="codicePdv"></span></p>
+
+  <section><h2>Dettaglio Locale</h2><div id="info"></div></section>
+  <section><h3>Macchine nel locale</h3><div id="tblM"></div></section>
+  <section><h3>PDA nel locale</h3><div id="tblP"></div></section>
+</main>
+<!-- carica prima nav e app -->
+<script src="nav.js" defer></script>
+<script src="app.js"></script>
+
+<!-- carica prima nav e app -->
+<script src="nav.js" defer></script>
+<script src="app.js"></script>
+
+<!-- fallback in caso app.js non definisca fetchJson -->
+<script>
+window.fetchJson ||= async (url, opts = {}) => {
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+};
+</script>
+
+<!-- il tuo script che chiama fetchJson va DOPO -->
+<script>
+const params = new URLSearchParams(location.search);
+const id = params.get('id');
+if (!id) {
+  document.getElementById('info').innerHTML = '<p class="err">ID locale mancante</p>';
+  throw new Error('no venue id');
+}
+
+(async () => {
+  try {
+    const j = await fetchJson(`/api/venues/${encodeURIComponent(id)}/detail`);
+    const v = j.venue || j;
+
+    document.getElementById('info').innerHTML = `
+      <div class="grid cols-4">
+        <div><b>Locale</b><br>${v.nome || '—'}</div>
+        <div><b>Codice Sede</b><br>${v.codice_sede || '—'}</div>
+        <div><b>Codice PDV</b><br>${v.codice_pdv || '—'}</div>
+        <div><b>Indirizzo</b><br>${[v.indirizzo, v.comune, v.provincia].filter(Boolean).join(', ') || '—'}</div>
+      </div>`;
+
+    const ms = j.machines || [];
+    document.getElementById('tblM').innerHTML = ms.length ? [
+      '<table><thead><tr>',
+      '<th>CodeID</th><th>Modello</th><th>CNTIN</th><th>CNTOUT</th><th>Lettura</th><th>Ultimo PDA</th>',
+      '</tr></thead><tbody>',
+      ...ms.map(m => `<tr>
+        <td><a class="pill" href="machine.html?codeid=${encodeURIComponent(m.codeid)}">${m.codeid}</a></td>
+        <td>${m.modello || ''}</td>
+        <td>${formatNum(m.cnttotin,0)}</td>
+        <td>${formatNum(m.cnttotot,0)}</td>
+        <td>${(m.reading_at||'').replace('T',' ').slice(0,16)}</td>
+        <td>${m.mac_address ? `<a class="pill" href="pdas.html?mac=${encodeURIComponent(m.mac_address)}">${m.mac_address}</a>` : '—'}</td>
+      </tr>`),
+      '</tbody></table>'
+    ].join('') : '<div class="muted">Nessuna macchina associata a questo locale.</div>';
+
+    const ps = j.pdas || [];
+    document.getElementById('tblP').innerHTML = ps.length ? [
+      '<table><thead><tr><th>MAC</th><th>Ultimo visto</th></tr></thead><tbody>',
+      ...ps.map(p => `<tr>
+        <td><a class="pill" href="pdas.html?mac=${encodeURIComponent(p.mac)}">${p.mac}</a></td>
+        <td>${(p.last_seen_at||'').replace('T',' ').slice(0,16)}</td>
+      </tr>`),
+      '</tbody></table>'
+    ].join('') : '<div class="muted">Nessun PDA registrato per questo locale.</div>';
+  } catch (e) {
+    console.error(e);
+    document.getElementById('info').innerHTML = '<p class="err">Locale non trovato o errore server.</p>';
+    document.getElementById('tblM').innerHTML = '';
+    document.getElementById('tblP').innerHTML = '';
+  }
+})();
+</script>
+</body></html>

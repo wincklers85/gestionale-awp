@@ -1,0 +1,86 @@
+<!doctype html><html lang="it"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Fine ciclo</title>
+<link rel="stylesheet" href="app.css">
+</head><body>
+<header>
+</header>
+<main>
+  <section>
+    <h2>Previsioni fine ciclo</h2>
+    <div class="flex">
+      <label>Finestra media giornaliera (giorni)
+        <input id="win" type="number" value="14" min="3" max="60" />
+      </label>
+      <button id="go">Aggiorna</button>
+    </div>
+    <div id="tbl"></div>
+    <small class="muted">Le macchine marcate <span class="err">critico</span> sono in cima: residuo payout dovuto &gt; pay-in rimanente.</small>
+  </section>
+</main>
+<script src="nav.js" defer></script>
+<script src="app.js"></script>
+<script>
+window.fetchJson ||= async (u,o={}) => { const r = await fetch(u,o); if(!r.ok) throw new Error(await r.text()); return r.json(); };
+function pct(n){ return n==null ? '—' : (Math.round(n*100)/100).toFixed(2) + '%'; }
+function intf(n){ return n==null ? '—' : n.toLocaleString('it-IT'); }
+
+(async ()=>{
+  try{
+    const rows = await fetchJson('/api/alerts/fine-ciclo?limit=100');
+    document.getElementById('tbl').innerHTML = [
+      '<table><thead><tr>',
+      '<th>CodeID</th><th>Esercizio</th><th>Modello</th>',
+      '<th>% ciclo corrente</th><th>% avanzamento ciclo</th>',
+      '<th>Manca introdurre</th><th>Manca pagare</th><th>Stato</th>',
+      '</tr></thead><tbody>',
+      ...rows.map(r => `<tr>
+        <td><a class="pill" href="machine.html?codeid=${encodeURIComponent(r.codeid)}">${r.codeid}</a></td>
+        <td>${r.esercizio||''}</td>
+        <td>${r.modello||''}</td>
+        <td>${pct(r.pct_ciclo_corrente)}</td>
+        <td>${pct(r.percentuale_ciclo)}</td>
+        <td>${intf(r.manca_introdurre)}</td>
+        <td>${intf(r.manca_pagare)}</td>
+        <td>${r.buona ? '<span class="pill">BUONA</span>' : '—'}</td>
+      </tr>`),
+      '</tbody></table>'
+    ].join('');
+  }catch(e){
+    console.error(e);
+    document.getElementById('tbl').innerHTML = '<p class="err">Errore nel caricare gli alert.</p>';
+  }
+})();
+</script>
+<script>
+async function load(){
+  const w = Number(qs('#win').value||14);
+  const rows = await (await fetch('/api/alerts/end-cycle?windowDays='+w+'&limit=100')).json();
+const html = [`<table><thead><tr>
+  <th>CodeID</th><th>Esercizio</th><th>Modello</th><th>% Ciclo</th><th>% Globale</th>
+  <th>Prog IN</th><th>Riman IN</th><th>Avg/d</th><th>ETA</th><th>Residuo OUT</th><th>Critico</th>
+</tr></thead><tbody>`,
+  ...rows.map(x=>{
+    const pc = x.perc_ciclo!=null ? (x.perc_ciclo*100).toFixed(1)+'%' : '';
+    const pg = x.perc_globale!=null ? (x.perc_globale*100).toFixed(1)+'%' : '';
+    return `<tr>
+      <td><a class="pill" href="machine.html?codeid=${encodeURIComponent(x.codeid)}">${x.codeid}</a></td>
+      <td>${x.esercizio||''}</td>
+      <td>${x.modello||''}</td>
+      <td>${pc}</td>
+      <td>${pg}</td>
+      <td>${formatNum(x.progress_in,0)}</td>
+      <td>${formatNum(x.remaining_in,0)}</td>
+      <td>${formatNum(x.avg_daily_in,1)}</td>
+      <td>${x.eta_date||''}</td>
+      <td>${formatNum(x.residuo_out_dovuto,0)}</td>
+      <td class="${x.critical?'err':'ok'}">${x.critical?'CRITICO':'ok'}</td>
+    </tr>`;
+  }),
+`</tbody></table>`].join('');
+  qs('#tbl').innerHTML = html;
+}
+qs('#go').addEventListener('click', load);
+load();
+</script>
+</body></html>

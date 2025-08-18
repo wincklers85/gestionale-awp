@@ -1,0 +1,117 @@
+<!doctype html><html lang="it"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Dettaglio macchina</title>
+<link rel="stylesheet" href="app.css">
+</head><body>
+<header>
+</header>
+<main>
+  <section>
+    <h2>Dettaglio macchina</h2>
+    <div id="info"></div>
+  </section>
+
+  <section>
+    <h3>Ultime letture</h3>
+    <div id="daily"></div>
+  </section>
+
+  <section>
+    <h3>Imposta/aggiorna ciclo & payout</h3>
+    <div class="grid cols-4">
+      <label>Start data ciclo
+        <input id="cycle_start_date" type="date">
+      </label>
+      <label>Start IN (cnttotin)
+        <input id="cycle_start_in_counter" type="number" step="0.01">
+      </label>
+      <label>Start OUT (cnttotot)
+        <input id="cycle_start_out_counter" type="number" step="0.01">
+      </label>
+      <label>Lunghezza ciclo (pay-in) es. 30000
+        <input id="cycle_length_in" type="number" step="1">
+      </label>
+      <label>Payout target (es. 0.65 per 65%)
+        <input id="target_payout_percent" type="number" step="0.01" min="0" max="1" value="0.65">
+      </label>
+      <label>Note
+        <input id="note" type="text">
+      </label>
+    </div>
+    <div class="flex">
+      <button id="save">Salva ciclo</button>
+      <small class="muted">Esempi: payout 65% e ciclo 30000 → fine ciclo atteso con OUT 19500; altre macchine possono avere 32000, ecc.</small>
+    </div>
+    <pre id="save_out"></pre>
+  </section>
+</main>
+<script src="nav.js"></script>
+<script src="app.js"></script>
+<script>
+const codeid = params.get('codeid');
+if(!codeid){ document.body.innerHTML = '<p>CodeID mancante</p>'; throw new Error('no codeid'); }
+
+function normalizeName(s){ return (s||'').trim().toLowerCase().replace(/\s+/g,' '); }
+
+async function load(){
+  const j = await (await fetch('/api/machines/'+encodeURIComponent(codeid))).json();
+  if(j.error){ qs('#info').innerHTML = '<p class="err">'+j.error+'</p>'; return; }
+
+  const m = j.machine;
+  const hasOfficial = !!m.modello_official;
+  const mismatch = hasOfficial && (normalizeName(m.modello) !== normalizeName(m.modello_official));
+
+  qs('#info').innerHTML = `
+    <div class="grid cols-4">
+      <div><b>CodeID</b><br><span class="pill">${m.codeid}</span></div>
+      <div><b>Esercizio</b><br>${m.esercizio||''}</div>
+      <div><b>Modello (file XLSX)</b><br>${m.modello||''}</div>
+      <div><b>Nome ufficiale ADM</b><br>
+        ${hasOfficial ? `${m.modello_official}${mismatch ? ' <span class="err">(mismatch)</span>' : ''}` : '<span class="warn">non disponibile</span>'}
+      </div>
+      <div><b>Stato</b><br>${m.stato||''}</div>
+      <div><b>Data attivazione</b><br>${(m.data_attivazione||'').slice(0,10)}</div>
+      <div><b>Payout (default modello)</b><br>${m.percent_out_em??''}</div>
+    </div>`;
+
+  const rows = j.daily||[];
+  qs('#daily').innerHTML = [`<table><thead><tr>
+    <th>Lettura (data/ora)</th><th>CNTTOTIN</th><th>CNTTOTOT</th><th>Incasso</th><th>Media gg</th><th>GG Decadenza</th>
+  </tr></thead><tbody>`,
+    ...rows.map(r=>`<tr>
+      <td>${(r.reading_at||r.data_ultima_lettura_val||'').replace('T',' ').slice(0,19)}</td>
+      <td>${formatNum(r.cnttotin,0)}</td>
+      <td>${formatNum(r.cnttotot,0)}</td>
+      <td>${formatNum(r.incasso_giornaliero,0)}</td>
+      <td>${formatNum(r.media_incasso_gg,1)}</td>
+      <td>${r.gg_decadenza??''}</td>
+    </tr>`),
+  `</tbody></table>`].join('');
+
+  const c = j.cycle||{};
+  qs('#cycle_start_date').value = (c.cycle_start_date||'').slice(0,10);
+  qs('#cycle_start_in_counter').value = c.cycle_start_in_counter??'';
+  qs('#cycle_start_out_counter').value = c.cycle_start_out_counter??'';
+  qs('#cycle_length_in').value = c.cycle_length_in??'';
+  qs('#target_payout_percent').value = c.target_payout_percent ?? 0.65;
+  qs('#note').value = c.note??'';
+}
+qs('#save').addEventListener('click', async ()=>{
+  const body = {
+    cycle_start_date: qs('#cycle_start_date').value || null,
+    cycle_start_in_counter: qs('#cycle_start_in_counter').value? Number(qs('#cycle_start_in_counter').value): null,
+    cycle_start_out_counter: qs('#cycle_start_out_counter').value? Number(qs('#cycle_start_out_counter').value): null,
+    cycle_length_in: qs('#cycle_length_in').value? Number(qs('#cycle_length_in').value): null,
+    target_payout_percent: qs('#target_payout_percent').value? Number(qs('#target_payout_percent').value): null,
+    note: qs('#note').value || null
+  };
+  const r = await fetch('/api/cycles/'+encodeURIComponent(codeid), {
+    method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+  });
+  const j = await r.json();
+  qs('#save_out').textContent = JSON.stringify(j,null,2);
+  if(!j.error) load();
+});
+load();
+</script>
+</body></html>

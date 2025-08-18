@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Impostazioni</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header></header>
+
+<main>
+  <!-- Upload XLSX giornaliero -->
+  <section>
+    <h2>Carica nuovo file giornaliero</h2>
+    <form id="uploadForm" class="grid">
+      <input type="file" id="fileInput" accept=".xlsx,.xls" required />
+      <label class="checkbox">
+        <input type="checkbox" id="forceImport"> Forza import (reimporta anche file già caricati)
+      </label>
+      <button type="submit">Carica &amp; Ingest</button>
+    </form>
+    <pre id="upload_out" class="card" style="white-space:pre-wrap"></pre>
+  </section>
+
+  <!-- Import PDF modelli ADM -->
+  <section>
+    <h2>Import PDF dei modelli (payout e lunghezze ciclo)</h2>
+    <small class="muted">Carica il PDF ufficiale ADM: aggiorna payout minimo, lunghezza ciclo e nome ufficiale per ciascun codice modello.</small>
+    <form id="pdfForm" class="grid" enctype="multipart/form-data">
+      <input type="file" id="pdfInput" name="file" accept=".pdf" required />
+      <button type="submit">Importa PDF</button>
+    </form>
+    <pre id="pdf_out" class="card" style="white-space:pre-wrap"></pre>
+  </section>
+
+  <!-- Tabella default modello (da DB) -->
+  <section>
+    <h2>Modelli: payout e lunghezza ciclo di default</h2>
+    <div id="models_table" class="card"></div>
+  </section>
+
+  <!-- Scheda modelli da PDF ADM -->
+  <section>
+    <h2>Scheda Modelli (dati da PDF ADM)</h2>
+    <div id="adm_sheet" class="card"></div>
+  </section>
+
+  <!-- Modifica manuale default modello -->
+  <section>
+    <h2>Modelli (modifica manuale)</h2>
+    <small class="muted">I default impostati qui vengono usati se la macchina non ha un override in <code>cycles</code>.</small>
+    <div id="models" class="card"></div>
+  </section>
+</main>
+
+<script src="nav.js" defer></script>
+<script src="app.js"></script>
+
+<script>
+(() => {
+  // Utils / fallback
+  const $  = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+  window.fetchJson ||= async (url, opts = {}) => {
+    const r = await fetch(url, opts);
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  };
+  const pct  = n => (n==null ? '—' : (Math.round(n*10000)/100).toFixed(2) + '%');
+  const intf = n => (n==null ? '—' : Number(n).toLocaleString('it-IT'));
+
+  // ========== Upload XLSX ==========
+  async function onIngestSubmit(e){
+    e.preventDefault();
+    const f = $('#fileInput')?.files?.[0];
+    if (!f) { alert('Seleziona un file XLSX'); return; }
+    const force = $('#forceImport')?.checked;
+    const fd = new FormData(); fd.append('file', f);
+    const url = '/api/ingest' + (force ? '?force=1' : '');
+    try{
+      const res  = await fetch(url, { method:'POST', body: fd });
+      const text = await res.text();
+      let j; try { j = JSON.parse(text); } catch { $('#upload_out').textContent = text; return; }
+      $('#upload_out').textContent = JSON.stringify(j, null, 2);
+    }catch(err){
+      $('#upload_out').textContent = 'Errore ingest XLSX: ' + (err?.message || String(err));
+    }
+  }
+
+  // ========== Import PDF ==========
+  async function onPdfSubmit(e){
+    e.preventDefault();
+    const f = $('#pdfInput')?.files?.[0];
+    if (!f) { alert('Seleziona un PDF'); return; }
+    const fd = new FormData(); fd.append('file', f); // il campo DEVE chiamarsi "file"
+    try{
+      $('#pdf_out').textContent = 'Caricamento...';
+      const res  = await fetch('/api/models/import-pdf', { method:'POST', body: fd });
+      const text = await res.text();
+      let j; try { j = JSON.parse(text); } catch { $('#pdf_out').textContent = text; return; }
+      $('#pdf_out').textContent = JSON.stringify(j, null, 2);
+      if (!res.ok || j.error) return;
+      // ricarica le tabelle senza refresh pagina
+      await loadModelsTable();
+      await loadAdmSheet();
+    }catch(err){
+      $('#pdf_out').textContent = 'Errore import PDF: ' + (err?.message || String(err));
+    }
+  }
+
+  // ========== Tabelle ==========
+  async function loadModelsTable(){
+    try{
+      const rows = await fetchJson('/api/models');
+      const html = [
+        '<table><thead><tr>',
+        '<th>Nome ufficiale</th><th>Codice modello</th><th>N.PART.CICLO</th><th>% MINIMA</th>',
+        '</tr></thead><tbody>',
+        ...rows.map(r => `
+          <tr>
+            <td>${r.official_name || r.nome || '—'}</td>
+            <td><code>${r.codice_modello || '—'}</code></td>
+            <td>${r.default_cycle_length_in ?? '—'}</td>
+            <td>${r.default_payout_percent != null ? pct(r.default_payout_percent) : '—'}</td>
+          </tr>
+        `),
+        '</tbody></table>'
+      ].join('');
+      $('#models_table').innerHTML = html;
+    }catch(e){
+      console.error(e);
+      $('#models_table').innerHTML = '<p class="err">Errore nel caricare i modelli.</p>';
+    }
+  }
+
+  async function loadAdmSheet(){
+    try{
+      // Prova endpoint dedicato; se manca, fallback su /api/models adattando i campi
+      let rows;
+      try {
+        rows = await fetchJson('/api/models/adm');
+      } catch {
+        const base = await fetchJson('/api/models');
+        rows = base.map(r => ({
+          commercial_name: r.official_name || r.nome || null,
+          manufacturer: r.manufacturer || null,
+          codice_modello: r.codice_modello,
+          default_payout_percent: r.default_payout_percent,
+          default_cycle_length_in: r.default_cycle_length_in
+        }));
+      }
+      const html = [
+        '<table><thead><tr>',
+        '<th>Nome commerciale</th><th>Produttore</th><th>Codice modello</th><th>% MINIMA</th><th>N.PART.CICLO</th>',
+        '</tr></thead><tbody>',
+        ...rows.map(r => `
+          <tr>
+            <td>${r.commercial_name || '—'}</td>
+            <td>${r.manufacturer || '—'}</td>
+            <td><code>${r.codice_modello || '—'}</code></td>
+            <td>${pct(r.default_payout_percent)}</td>
+            <td>${intf(r.default_cycle_length_in)}</td>
+          </tr>
+        `),
+        '</tbody></table>'
+      ].join('');
+      $('#adm_sheet').innerHTML = html;
+    }catch(e){
+      console.error(e);
+      $('#adm_sheet').innerHTML = '<p class="err">Errore nel caricare la scheda modelli.</p>';
+    }
+  }
+
+  // ========== Modifica manuale default ==========
+  async function loadModelsEditable(){
+    try{
+      const rows = await fetchJson('/api/models');
+      const html = [
+        '<table><thead><tr>',
+        '<th>Modello</th><th>Codice</th><th>Payout default</th><th>Ciclo default (pay-in)</th><th></th>',
+        '</tr></thead><tbody>',
+        ...rows.map(m => `
+          <tr>
+            <td>${m.official_name || m.nome || ''}</td>
+            <td><code>${m.codice_modello || ''}</code></td>
+            <td><input data-id="${m.id}" data-k="default_payout_percent" type="number" step="0.01" min="0" max="1" value="${m.default_payout_percent ?? ''}"></td>
+            <td><input data-id="${m.id}" data-k="default_cycle_length_in" type="number" step="1" value="${m.default_cycle_length_in ?? ''}"></td>
+            <td><button data-id="${m.id}" class="save">Salva</button></td>
+          </tr>
+        `),
+        '</tbody></table>'
+      ].join('');
+      $('#models').innerHTML = html;
+    }catch(e){
+      console.error(e);
+      $('#models').innerHTML = '<p class="err">Errore nel caricare modelli.</p>';
+    }
+
+    // Delegation per i pulsanti "Salva"
+    $('#models').addEventListener('click', async (ev) => {
+      if (!ev.target.classList.contains('save')) return;
+      const id  = ev.target.getAttribute('data-id');
+      const row = ev.target.closest('tr');
+      const pEl = row.querySelector('input[data-k="default_payout_percent"]');
+      const cEl = row.querySelector('input[data-k="default_cycle_length_in"]');
+      const body = {
+        default_payout_percent: pEl.value ? Number(pEl.value) : null,
+        default_cycle_length_in: cEl.value ? Number(cEl.value) : null
+      };
+      try{
+        const r = await fetch('/api/models/' + id, {
+          method:'PUT',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify(body)
+        });
+        const j = await r.json();
+        alert(j.ok ? 'Salvato' : 'Errore salvataggio');
+        if (j.ok) { await loadModelsTable(); await loadAdmSheet(); }
+      }catch(err){ alert('Errore: ' + (err?.message || String(err))); }
+    });
+  }
+
+  // ========== Init ==========
+  document.addEventListener('DOMContentLoaded', () => {
+    $('#uploadForm')?.addEventListener('submit', onIngestSubmit);
+    $('#pdfForm')?.addEventListener('submit', onPdfSubmit);
+    loadModelsTable();
+    loadAdmSheet();
+    loadModelsEditable();
+  });
+})();
+</script>
+
+</body>
+</html>

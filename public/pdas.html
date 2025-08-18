@@ -1,0 +1,97 @@
+<!doctype html><html lang="it"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>PDA</title>
+<link rel="stylesheet" href="app.css">
+</head><body>
+<header></header>
+<main>
+  <section><h2>Dettaglio PDA</h2><div id="info"></div></section>
+  <section><h3>Macchine collegate (ultimo collegamento)</h3><div id="tbl"></div></section>
+</main>
+<script src="nav.js" defer></script>
+<script src="app.js"></script>
+<script>
+window.fetchJson ||= (async (url, opts = {}) => {
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+});
+</script>
+<script>
+  
+const params = new URLSearchParams(location.search);
+const mac = params.get('mac');
+
+async function renderDetail(mac) {
+  try {
+    const j = await fetchJson(`/api/pdas/${encodeURIComponent(mac)}/detail`);
+    const p = j.pda || j.pda || j.pda; // compat
+
+    // Header info PDA (sempre visibile)
+    document.querySelector('h2').textContent = 'Dettaglio PDA';
+    document.getElementById('info').innerHTML = `
+      <div class="grid cols-4">
+        <div><b>MAC</b><br><span class="pill">${p.mac}</span></div>
+        <div><b>Ultimo visto</b><br>${(p.last_seen_at || '').replace('T',' ').slice(0,16) || '—'}</div>
+        <div><b>Locale</b><br>${p.venue || '—'}</div>
+        <div><b>Indirizzo</b><br>${[p.indirizzo,p.comune,p.provincia].filter(Boolean).join(', ') || '—'}</div>
+      </div>`;
+
+    const rows = j.machines || [];
+    if (!rows.length) {
+      document.getElementById('tbl').innerHTML =
+        `<div class="muted" style="margin-top:8px">
+           Nessuna macchina con <i>ultimo collegamento</i> su questo PDA.
+         </div>`;
+      return;
+    }
+
+    document.getElementById('tbl').innerHTML = ['<table><thead><tr>',
+      '<th>CodeID</th><th>Esercizio</th><th>CNTIN</th><th>CNTOUT</th><th>Lettura</th>',
+      '</tr></thead><tbody>',
+      ...rows.map(x=>`<tr>
+        <td><a class="pill" href="machine.html?codeid=${encodeURIComponent(x.codeid)}">${x.codeid}</a></td>
+        <td>${x.esercizio||''}</td>
+        <td>${formatNum(x.cnttotin,0)}</td>
+        <td>${formatNum(x.cnttotot,0)}</td>
+        <td>${(x.reading_at||'').replace('T',' ').slice(0,16)}</td>
+      </tr>`),
+      '</tbody></table>'
+    ].join('');
+  } catch (e) {
+    document.getElementById('info').innerHTML =
+      `<p class="err">PDA non trovato o errore server.</p>`;
+    document.getElementById('tbl').innerHTML = '';
+    console.error(e);
+  }
+}
+
+async function renderList() {
+  // opzionale: se apri senza ?mac, mostra la lista
+  try {
+    const list = await (await fetch('/api/pdas',{cache:'no-store'})).json();
+    document.querySelector('h2').textContent = 'Elenco PDA';
+    document.getElementById('info').innerHTML = '';
+    document.getElementById('tbl').innerHTML = [
+      '<table><thead><tr><th>MAC</th><th>Locale</th><th>Ultimo visto</th><th></th></tr></thead><tbody>',
+      ...list.map(p=>`<tr>
+        <td><span class="pill">${p.mac}</span></td>
+        <td>${p.venue||''}</td>
+        <td>${(p.last_seen_at||'').replace('T',' ').slice(0,16)}</td>
+        <td><a class="pill" href="pdas.html?mac=${encodeURIComponent(p.mac)}">Dettaglio</a></td>
+      </tr>`),
+      '</tbody></table>'
+    ].join('');
+  } catch {
+    document.getElementById('info').innerHTML =
+      '<p class="err">MAC mancante. Apri un PDA dalla ricerca oppure usa <code>pdas.html?mac=AA:BB:CC:DD:EE:FF</code>.</p>';
+    document.getElementById('tbl').innerHTML = '';
+  }
+}
+
+(async ()=>{
+  if (mac) await renderDetail(mac);
+  else await renderList();
+})();
+</script>
+</body></html>

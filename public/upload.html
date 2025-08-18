@@ -1,0 +1,42 @@
+<!doctype html><html lang="it"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Carica file</title>
+<link rel="stylesheet" href="app.css">
+</head><body>
+<header>
+</header>
+<main>
+  <section>
+    <h2>Carica file giornaliero (XLSX)</h2>
+    <form id="uploadForm" class="grid">
+      <input type="file" id="fileInput" accept=".xlsx,.xls" required />
+      <button>Carica & Ingest</button>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:8px">
+       <input type="checkbox" id="forceImport">
+        Forza import (reimporta anche se il file è già stato caricato)
+      </label>
+    </form>
+    <pre id="out"></pre>
+  </section>
+</main>
+<script src="nav.js"></script>
+<script src="app.js"></script>
+<script>
+document.getElementById('xlsxForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const file = document.getElementById('file').files[0];
+  if (!file) return alert('Seleziona un file XLSX');
+
+  const force = document.getElementById('forceImport').checked;
+  const url = '/api/ingest' + (force ? '?force=1' : '');
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  const res = await fetch(url, { method: 'POST', body: fd });
+  const json = await res.json();
+  document.getElementById('out').textContent = JSON.stringify(json, null, 2);
+});
+</script>
+
+</body></html>

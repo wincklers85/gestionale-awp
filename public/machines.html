@@ -1,0 +1,58 @@
+<!doctype html><html lang="it"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Macchine</title>
+<link rel="stylesheet" href="app.css">
+</head><body>
+<header>
+</header>
+<main>
+  <section>
+    <h2>Anagrafica macchine</h2>
+    <div class="flex">
+      <input id="q" placeholder="Cerca per CODEID"/>
+      <input id="modello" placeholder="Modello esatto (opz.)"/>
+      <input id="esercizio" placeholder="Esercizio esatto (opz.)"/>
+      <input id="stato" placeholder="Stato (opz.)"/>
+      <button id="btn">Filtra</button>
+    </div>
+    <small class="muted">Suggerimento: compila uno o più campi e premi Filtra.</small>
+    <div id="tbl"></div>
+  </section>
+</main>
+<script src="nav.js"></script>
+<script src="app.js"></script>
+<script>
+function hydrateFromURL(){
+  const e = params.get('esercizio'); if(e) qs('#esercizio').value = e;
+  const m = params.get('modello'); if(m) qs('#modello').value = m;
+  const qv = params.get('q'); if(qv) qs('#q').value = qv;
+  const s = params.get('stato'); if(s) qs('#stato').value = s;
+}
+async function load(){
+  const p = new URLSearchParams();
+  const q = qs('#q').value.trim(); if(q) p.set('q', q);
+  const m = qs('#modello').value.trim(); if(m) p.set('modello', m);
+  const e = qs('#esercizio').value.trim(); if(e) p.set('esercizio', e);
+  const s = qs('#stato').value.trim(); if(s) p.set('stato', s);
+  p.set('limit','500');
+  const rows = await (await fetch('/api/machines?'+p.toString())).json();
+  const html = [`<table><thead><tr>
+    <th>CodeID</th><th>Esercizio</th><th>Modello</th><th>Ultima lettura</th><th>CNTIN</th><th>CNTOUT</th><th>Stato</th>
+  </tr></thead><tbody>`,
+  ...rows.map(x=>`<tr>
+    <td><a class="pill" href="machine.html?codeid=${encodeURIComponent(x.codeid)}">${x.codeid}</a></td>
+    <td>${x.esercizio||''}</td>
+    <td>${x.modello||''}</td>
+    <td>${(x.last_reading_at||'').replace('T',' ').slice(0,16)}</td>
+    <td>${formatNum(x.last_cnttotin,0)}</td>
+    <td>${formatNum(x.last_cnttotot,0)}</td>
+    <td>${x.stato||''}</td>
+  </tr>`),
+  `</tbody></table>`].join('');
+  qs('#tbl').innerHTML = html;
+}
+qs('#btn').addEventListener('click', load);
+hydrateFromURL();
+load();
+</script>
+</body></html>

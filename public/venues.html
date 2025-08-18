@@ -1,0 +1,30 @@
+<!doctype html><html lang="it"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Locali</title>
+<link rel="stylesheet" href="app.css">
+</head><body>
+<header></header>
+<main>
+  <section><h2>Locali</h2><div id="list"></div></section>
+</main>
+<script src="nav.js"></script>
+<script src="app.js"></script>
+<script>
+(async ()=>{
+  const vs = await (await fetch('/api/venues')).json();
+  const html = [`<table><thead><tr>
+    <th>Locale</th><th>Indirizzo</th><th>Comune</th><th>Prov.</th><th># Macchine</th><th></th>
+  </tr></thead><tbody>`,
+  ...vs.map(v=>`<tr>
+    <td>${v.nome||''}</td>
+    <td>${v.indirizzo||''}</td>
+    <td>${v.comune||''}</td>
+    <td>${v.provincia||''}</td>
+    <td>${v.num_machines||0}</td>
+    <td><a class="pill" href="venue.html?id=${v.id}">Dettagli</a></td>
+  </tr>`),
+  `</tbody></table>`].join('');
+  document.getElementById('list').innerHTML = html;
+})();
+</script>
+</body></html>

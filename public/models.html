@@ -1,0 +1,25 @@
+<!doctype html><html lang="it"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Modelli</title>
+<link rel="stylesheet" href="app.css">
+</head><body>
+<header>
+</header>
+<main>
+  <section>
+    <h2>Modelli – conteggio macchine</h2>
+    <div id="tbl"></div>
+  </section>
+</main>
+<script src="nav.js"></script>
+<script src="app.js"></script>
+<script>
+(async ()=>{
+  const rows = await (await fetch('/api/models/summary')).json();
+  const html = [`<table><thead><tr><th>Modello</th><th># Macchine</th></tr></thead><tbody>`,
+    ...rows.map(x=>`<tr><td>${x.modello||'(sconosciuto)'}</td><td>${x.num_machines}</td></tr>`),
+    `</tbody></table>`].join('');
+  qs('#tbl').innerHTML = html;
+})();
+</script>
+</body></html>
